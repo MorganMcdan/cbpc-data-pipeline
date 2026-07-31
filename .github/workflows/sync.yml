@@ -1,0 +1,40 @@
+name: Sync CBPC RSS Feed
+
+# Runs automatically every Wednesday (CBPC's usual release day -- adjust if
+# that changes), and can also be triggered manually from the Actions tab.
+on:
+  schedule:
+    - cron: '0 15 * * 3'   # 15:00 UTC Wednesday -- adjust for your timezone/release cadence
+  workflow_dispatch: {}
+
+permissions:
+  contents: write   # needed so the job can commit the updated db back to the repo
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Sync new episodes from RSS
+        run: python sync_rss.py https://feeds.megaphone.fm/UUCUL7390370337
+
+      - name: Regenerate static export for the timeline/guest-map embeds
+        run: python export_static.py
+
+      - name: Commit changes if anything updated
+        run: |
+          git config user.name "cbpc-sync-bot"
+          git config user.email "actions@github.com"
+          git add cbpc.db cbpc_export.json
+          git diff --cached --quiet || git commit -m "Automated RSS sync $(date -u +%Y-%m-%d)"
+          git push
