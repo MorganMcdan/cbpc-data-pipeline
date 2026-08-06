@@ -1,0 +1,38 @@
+name: Geocode Guest Locations
+
+# Manual trigger only -- run this after updating guest city/state data
+# (via the sheet merge), not on a fixed schedule like the RSS sync.
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  geocode:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Geocode guest locations
+        run: python geocode_guests.py
+
+      - name: Regenerate static export
+        run: python export_static.py
+
+      - name: Commit changes if anything updated
+        run: |
+          git config user.name "cbpc-sync-bot"
+          git config user.email "actions@github.com"
+          git add cbpc.db cbpc_export.json
+          git diff --cached --quiet || git commit -m "Geocode guest locations $(date -u +%Y-%m-%d)"
+          git push

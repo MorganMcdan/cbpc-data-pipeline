@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Could Be Pretty Cool — Guest Map</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
+<style>
+  :root {
+    --bg: #12151C;
+    --panel: #1B1F29;
+    --panel-border: #2A303D;
+    --land: #232838;
+    --land-border: #363D4E;
+    --text: #EDEEF2;
+    --text-muted: #8B92A5;
+    --cat-artist: #F0637A;
+    --cat-founder: #F0B84B;
+    --cat-tech: #48C9B0;
+    --cat-community: #9B87E8;
+    --cat-sustainability: #7FC79E;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; width: 100%; height: 100%;
+    background: var(--bg); color: var(--text);
+    font-family: 'Inter', system-ui, sans-serif;
+    overflow: hidden;
+  }
+  #stage { position: relative; width: 100%; height: 100vh; min-height: 480px; }
+  svg#map { width: 100%; height: 100%; display: block; cursor: default; }
+  .state { fill: var(--land); stroke: var(--land-border); stroke-width: 1; }
+  .state:hover { fill: #262c3d; }
+
+  .spark {
+    cursor: pointer;
+    transition: r 0.15s ease, opacity 0.15s ease;
+  }
+  .spark-glow { pointer-events: none; }
+  .spark.dimmed { opacity: 0.12; }
+
+  header.hud {
+    position: absolute; top: 22px; left: 24px; z-index: 10;
+    pointer-events: none;
+  }
+  header.hud h1 {
+    font-family: 'Fraunces', serif; font-weight: 600; font-size: 26px;
+    margin: 0 0 4px 0; letter-spacing: 0.2px;
+  }
+  header.hud p {
+    margin: 0; font-size: 13px; color: var(--text-muted); font-weight: 500;
+  }
+
+  #legend {
+    position: absolute; bottom: 22px; left: 24px; z-index: 10;
+    background: rgba(27,31,41,0.88); border: 1px solid var(--panel-border);
+    border-radius: 12px; padding: 12px 14px; backdrop-filter: blur(6px);
+    max-width: 240px;
+  }
+  #legend .legend-title {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em;
+    color: var(--text-muted); margin-bottom: 8px; font-weight: 600;
+  }
+  .legend-item {
+    display: flex; align-items: center; gap: 8px; padding: 4px 2px;
+    cursor: pointer; border-radius: 6px; font-size: 13px; user-select: none;
+    transition: background 0.12s ease;
+  }
+  .legend-item:hover { background: rgba(255,255,255,0.04); }
+  .legend-item.off { opacity: 0.35; }
+  .legend-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+  .legend-count { margin-left: auto; color: var(--text-muted); font-size: 12px; }
+
+  #offmap-toggle {
+    position: absolute; top: 22px; right: 24px; z-index: 10;
+    background: rgba(27,31,41,0.88); border: 1px solid var(--panel-border);
+    border-radius: 20px; padding: 8px 16px; font-size: 13px; color: var(--text);
+    cursor: pointer; font-family: 'Inter', sans-serif; font-weight: 500;
+    backdrop-filter: blur(6px);
+  }
+  #offmap-toggle:hover { background: rgba(38,44,58,0.95); }
+
+  #offmap-panel {
+    position: absolute; top: 68px; right: 24px; z-index: 11;
+    width: 300px; max-height: 70vh; overflow-y: auto;
+    background: rgba(20,23,31,0.97); border: 1px solid var(--panel-border);
+    border-radius: 12px; padding: 16px; display: none;
+    box-shadow: 0 12px 32px rgba(0,0,0,0.4);
+  }
+  #offmap-panel.open { display: block; }
+  #offmap-panel h3 { font-family: 'Fraunces', serif; font-size: 15px; margin: 0 0 4px 0; }
+  #offmap-panel .subnote { font-size: 12px; color: var(--text-muted); margin-bottom: 12px; line-height: 1.4; }
+  .offmap-group-label {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em;
+    color: var(--text-muted); margin: 14px 0 6px 0; font-weight: 600;
+  }
+  .offmap-guest {
+    font-size: 13px; padding: 5px 0; border-bottom: 1px solid rgba(255,255,255,0.05);
+    display: flex; justify-content: space-between; gap: 8px;
+  }
+  .offmap-guest .cat-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; margin-right: 6px; flex-shrink: 0; }
+
+  #tooltip {
+    position: absolute; z-index: 20; pointer-events: none;
+    background: rgba(18,21,28,0.97); border: 1px solid var(--panel-border);
+    border-radius: 10px; padding: 10px 13px; font-size: 13px;
+    max-width: 220px; display: none; box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+  }
+  #tooltip .t-name { font-weight: 600; font-size: 14px; margin-bottom: 2px; }
+  #tooltip .t-cat { color: var(--text-muted); font-size: 12px; margin-bottom: 4px; }
+  #tooltip .t-loc { color: var(--text-muted); font-size: 12px; }
+  #tooltip .t-hint { color: var(--text-muted); font-size: 11px; margin-top: 6px; font-style: italic; }
+
+  footer.note {
+    position: absolute; bottom: 22px; right: 24px; z-index: 10;
+    font-size: 11px; color: var(--text-muted); max-width: 220px;
+    text-align: right; line-height: 1.4; pointer-events: none;
+  }
+
+  @media (max-width: 640px) {
+    header.hud h1 { font-size: 20px; }
+    #legend { max-width: 160px; padding: 10px; }
+    footer.note { display: none; }
+    #offmap-panel { width: 240px; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .spark { transition: none; }
+  }
+</style>
+</head>
+<body>
+
+<div id="stage">
+  <svg id="map"></svg>
+
+  <header class="hud">
+    <h1>Where Could Be Pretty Cool Has Been</h1>
+    <p id="guest-count-label">Loading guest locations…</p>
+  </header>
+
+  <div id="legend">
+    <div class="legend-title">Guest type</div>
+    <div id="legend-items"></div>
+  </div>
+
+  <button id="offmap-toggle">Off the map</button>
+  <div id="offmap-panel"></div>
+
+  <div id="tooltip"></div>
+
+  <footer class="note">
+    Locations shown are approximate placeholders pending verified geocoding.
+  </footer>
+</div>
+
+<script>
+const DATA = {"on_map": [{"guest_id": 7, "name": "AJ Carolyn", "category": "Artist/Creative", "city": "Atlanta", "state": "Georgia", "country": "United States", "website": "https://www.ajcarolyn.com/", "social": {"instagram": "https://www.instagram.com/starryfawns/", "tiktok": "https://www.tiktok.com/@starryfawns", "linkedin": "https://www.linkedin.com/in/aj-carolyn-96b555258"}, "lat": 33.825715699999996, "lon": -84.3815651}, {"guest_id": 32, "name": "Aaron Artrip", "category": "Tech Builder", "city": "Atlanta", "state": "Georgia", "country": "United States", "website": "https://www.aaronartrip.com/", "social": {"instagram": "https://www.instagram.com/artrip.tv"}, "lat": 33.7789157, "lon": -84.3434651}, {"guest_id": 5, "name": "Aaron Neal (Atlas)", "category": "Tech Builder", "city": "Atlanta", "state": "Georgia", "country": "United States", "website": "https://www.nceg.org/", "social": {"linkedin": "https://www.linkedin.com/in/aaron-neal-0508074b"}, "lat": 33.8144657, "lon": -84.36086510000001}, {"guest_id": 22, "name": "Akshay Bhatia", "category": "Artist/Creative", "city": "Atlanta", "state": "Georgia", "country": "United States", "website": "https://www.reelfriendsfilms.com/", "social": {"instagram": "https://www.instagram.com/bokomaru00/", "tiktok": "https://www.tiktok.com/@reelfriendsmovies", "linkedin": "https://www.linkedin.com/in/akshay-bhatia-4142702ab"}, "lat": 33.7639157, "lon": -84.3302651}, {"guest_id": 35, "name": "Alejo Porras", "category": "Artist/Creative", "city": "Atlanta", "state": "Georgia", "country": "United States", "website": "https://www.alejoporrasart.com/", "social": {"instagram": "https://www.instagram.com/alejoporrasart", "linkedin": "https://www.linkedin.com/in/alejoporras/"}, "lat": 33.746665699999994, "lon": -84.38441510000001}, {"guest_id": 28, "name": "Aliya Pasik", "category": "Sustainability Leader", "city": "West bloomfield", "state": "Michigan", "country": "United States", "website": "https://www.rcbm.net/behavioral-medicine/blog-detail/meet-the-team-aliya-pasik/", "social": {"linkedin": "https://www.linkedin.com/in/aliya-pasik-93864819"}, "lat": 42.588657299999994, "lon": -83.3504833}, {"guest_id": 23, "name": "Allison Salinger", "category": "Artist/Creative", "city": "Atlanta", "state": "Georgia", "country": "United States", "website": "https://www.potentialspamcomedy.com/", "social": {"instagram": "https://www.instagram.com/alsalinger/"}, "lat": 33.732565699999995, "lon": -84.3884651}, {"guest_id": 114, "name": "Amirah Kahera", "category": "Founder/Entrepreneur", "city": "Atlanta", "state": "Georgia", "country": "United States", "website": null, "social": {"linkedin": "https://www.linkedin.com/in/amirahkahera/"}, "lat": 33.6866657, "lon": -84.3644651}, {"guest_id": 63, "name": "Annalee Traylor", "category": "Artist/Creative", "city": "Atlanta", "state": "Georgia", "country": "United States", "website": "https://www.annaleetraylor.com/", "social": {"instagram": "https://www.instagram.com/annalee_traylor/", "linkedin": "https://www.linkedin.com/in/annalee-traylor-a390aa39/"}, "lat": 33.7810157, "lon": -84.34541510000001}, {"guest_id": 10, "name": "Anthony Frasier", "category": "Founder/Entrepreneur", "city": "Newark", "state": "New Jersey", "country": "United States", "website": "https://abfc.co/", "social": {"linkedin": "https://www.linkedin.com/in/anthonyfrasier"}, "lat": 40.750807, "lon": -74.1237667}, {"guest_id": 79, "name": "Ariel Fristoe", "category": "Artist/Creative", "city": "Atlanta", "state": "Georgia", "country": "United States", "website": "https://www.outofhandtheater.com/", "social": {"instagram": "https://www.instagram.com/outofhandatl", "facebook": "https://www.facebook.com/outofhandATL", "linkedin": "https://www.linkedin.com/in/ariel-fristoe/"}, "lat": 33.777265699999994, "lon": -84.4085651}, {"guest_id": 14, "name": "Aseloka Smith", "category": "Tech Builder", "city": "Baltimore", "state": "MAryland", "country": "United States", "website": "https://tinkmedia.co/", "social": {"instagram": "https://www.instagram.com/tinkmedia/", "linkedin": "https://www.linkedin.com/company/tink-media"}, "lat": 39.2887816, "lon": -76.680059}, {"guest_id": 64, "name": "Asia Kuykendall", "category": "Founder/Entrepreneur", "city": "Atlanta", "state": "Georgia", "country": "United States", "website": "https://quantumwealth.network/", "social": {"instagram": "https://www.instagram.com/asiak.247/", "linkedin": "https://www.linkedin.com/in/asiak/"}, "lat": 33.7904657, "lon": -84.3464651}, {"guest_id": 110, "name": "B. Sonenreich", "category": "Founder/Entrepreneur", "city": "Atlanta", "state": "Georgia", "country": "United States", "website": "https://atlfilmparty.com/", "social": {"instagram": "https://www.instagram.com/brookenreich/", "linkedin": "https://www.linkedin.com/company/atlfilmparty/"}, "lat": 33.710965699999996, "lon": -84.3427151}, {"guest_id": 68, "name": "Ben Armstrong", "category": "Founder/Entrepreneur", "city": "Stone Mountain", "state": "Georgia", "country": "United States", "website": "https://fearworld.com/", "social": {"instagram": "https://www.instagram.com/netherspawn/"}, "lat": 33.847016599999996, "lon": -84.1543005}, {"guest_id": 103, "name": "Bianca Cato", "category": "Community Organizer", "city": "Atlanta", "state": "Georgia", "country": "United States", "website": "https://linktr.ee/audio_video_club", "social": {"instagram": "https://www.instagram.com/audio_video_club/", "linkedin": "https://www.linkedin.com/in/bianca-cato/"}, "lat": 33.8224157, "lon": -84.3160151}, {"guest_id": 113, "name": "Bianca Hammonds", "category": "Founder/Entrepreneur", "city": "Los Angeles", "state": "California", "country": "United States", "website": "https://coachbiancalynn.com/", "social": {"instagram": "https://www.instagram.com/itsbiancalynn/", "linkedin": "https://www.linkedin.com/in/biancalhammonds/"}, "lat": 34.1027409, "lon": -118.303516}, {"guest_id": 44, "name": "Bill Worley", "category": "Artist/Creative", "city": "Atlanta", "state": "Georgia", "country": "United States", "website": "https://www.twoearscreative.com/", "social": {"instagram": "https://www.instagram.com/worleybirdpictures/", "linkedin": "https://www.linkedin.com/in/bill-worley/"}, "lat": 33.750565699999996, "lon": -84.43751510000001}, {"guest_id": 24, "name": "Birton Cowden", "category": "Artist/Creative", "city": "Atlanta", "state": "Georgia", "country": "United States", "website": "https://www.potentialspamcomedy.com/", "social": {}, "lat": 33.7121657, "lon": -84.35696510000001}, {"guest_id": 48, "name": "Bobbie Purser", "category": "Artist/Creative", "city": "Nashville", "state": "Tennessee", "country": "United States", "website": "https://www.pursermusic.com/", "social": {"instagram": "https://www.instagram.com/pursermusic"}, "lat": 36.1747267, "lon": -86.71999840000001}, {"guest_id": 15, "name": "Brian Reitz", "category": "Tech Builder", "city": "Chicago", "state": "Illinois", "country": "United States", "website": "https://yougov.com/en-us", "social": {}, "lat": 41.819611599999995, "lon": -87.6089712}, {"guest_id": 8, "name": "Calida Jones", "category": "Founder/Entrepreneur", "city": "Hartford", "state": "Connecticut", "country": "United States", "website": "https://cnjassociates.com/", "social": {"instagram": "https://www.instagram.com/calida_nicole/", "facebook": "https://www.facebook.com/people/CNJ-Associates/100082971446886/", "linkedin": "https://www.linkedin.com/in/cnjassociates/"}, "lat": 41.691531999999995, "lon": -72.7507047}, {"guest_id": 65, "name": "Callan Ramirez", "category": "Artist/Creative", "city": "Albuquerque", "state": "New Mexico", "country": "United States", "website": "https://callanramirez.com/", "social": {"instagram": "https://www.instagram.com/cactuscallan/", "linkedin": "linkedin.com/in/callan-ramirez-550380a1"}, "lat": 35.041053399999996, "lon": -106.58393500000001}, {"guest_id": 92, "name": "Casey Gardner Ford", "category": "Artist/Creative", "city": "Atlanta", "state": "Georgia", "country": "United States", "website": "https://www.breatheimages.com/", "social": {"instagram": "https://www.instagram.com/breathe__images/", "facebook": "https://www.facebook.com/caseygardnerphotos/"}, "lat": 33.7328657, "lon": -84.45761510000001}, {"guest_id": 59, "name": "Charis Sellick", "category": "Artist/Creative", "city": "Atlanta", "state": "Georgia", "country": "United States", "website": "https://givebutter.com/PlayHaven", "social": {"instagram": "https://www.instagram.com/charissellick/?hl=en", "facebook": "https://www.facebook.com/CharisSellick/"}, "lat": 33.7118657, "lon": -84.45971510000001}, {"guest_id": 80, "name": "Chef Lowell", "category": "Founder/Entrepreneur", "city": "Atlanta", "state": "Georgia", "country": "United States", "website": "https://www.cheflowell.com/", "social": {"instagram": "https://www.instagram.com/cheflowell/?hl=en", "linkedin": "https://www.linkedin.com/in/lowell-lea-b426b138/"}, "lat": 33.7444157, "lon": -84.44006510000001}, {"guest_id": 82, "name": "Cherie Danielle", "category": "Artist/Creative", "city": "Atlanta", "state": "Georgia", "country": "United States", "website": "https://www.cheriedanielle.com/", "social": {"instagram": "https://www.instagram.com/actresscheriedanielle/?hl=en", "facebook": "https://www.facebook.com/ActressCherieDanielle/", "linkedin": "https://www.linkedin.com/in/cheriedanielle/"}, "lat": 33.685915699999995, "lon": -84.38261510000001}, {"guest_id": 106, "name": "Courtney Ngai", "category": "Tech Builder", "city": "Scottsdale", "state": "Arizona", "country": "United States", "website": "https://www.courtneyngai.com/", "social": {"instagram": "https://www.instagram.com/courtneykpops/", "tiktok": "https://www.tiktok.com/@courtneykpops", "linkedin": "https://www.linkedin.com/in/iamcourtneyngai/"}, "lat": 33.4291189, "lon": -111.962768}, {"guest_id": 41, "name": "Dani Dufresne", "category": "Founder/Entrepreneur", "city": "Austin", "state": "Texas", "country": "United States", "website": "https://www.theauxiliaryco.com/", "social": {"instagram": "https://www.instagram.com/sweetdmd/", "linkedin": "https://www.linkedin.com/in/danidufresne/"}, "lat": 30.224178600000002, "lon": -97.74129950000001}, {"guest_id": 19, "name": "Danielle Desir Corbett", "category": "Founder/Entrepreneur", "city": "Bridgeport", "state": "Connecticut", "country": "United States", "website": "https://danielledesir.com/", "social": {"instagram": "https://www.instagram.com/thedaniellecorbett", "linkedin": "https://www.linkedin.com/in/danielledesir/"}, "lat": 41.190369499999996, "lon": -73.1839863}, {"guest_id": 70, "name": "Darius (YoNuggGaming)", "category": "Artist/Creative", "city": "Atlanta", "state": "Georgia", "country": "United States", "website": null, "social": {}, "lat": 33.6883157, "lon": -84.46046510000001}, {"guest_id": 52, "name": "Darius Evans", "category": "Founder/Entrepreneur", "city": "Mableton", "state": "Georgia", "country": "United States", "website": "https://www.cepnd.com/", "social": {"instagram": "https://www.instagram.com/dariusevansproducer/", "linkedin": "https://www.linkedin.com/in/dariusevans/"}, "lat": 33.7804333, "lon": -84.5552632}, {"guest_id": 77, "name": "Darryl Stephens", "category": "Tech Builder", "city": "Atlanta", "state": "Georgia", "country": "United States", "website": "https://www.bassparlourapp.com/", "social": {"linkedin": "https://www.linkedin.com/in/darrylrstephens/"}, "lat": 33.7634657, "lon": -84.33551510000001}, {"guest_id": 29, "name": "David Claassen", "category": "Community Organizer", "city": "Atlanta", "state": "Georgia", "country": "United States", "website": null, "social": {"instagram": "https://www.instagram.com/claassenman/"}, "lat": 33.745165699999994, "lon": -84.35276510000001}, {"guest_id": 47, "name": "DeMarcus Akeem Suggs", "category": "Community Organizer", "city": "Memphis", "state": "Tennessee", "country": "United States", "website": "https://www.kuumbuntu.us/", "social": {"linkedin": "https://www.linkedin.com/in/demarcusakeemsuggs/"}, "lat": 35.168825999999996, "lon": -89.9841286}, {"guest_id": 89, "name": "DeShuna Spencer", "category": "Founder/Entrepreneur", "city": "Washington", "state": "DC", "country": "United States", "website": "https://www.deshuna.com/", "social": {"instagram": "https://www.instagram.com/deshunaspencer/?hl=en", "linkedin": "https://www.linkedin.com/in/deshuna/"}, "lat": 38.8682482, "lon": -76.9844849}, {"guest_id": 42, "name": "Derek \"Prez\" Jackson", "category": "Founder/Entrepreneur", "city": "Tucker", "state": "Georgia", "country": "United States", "website": "https://www.nceg.org/", "social": {"instagram": "https://www.instagram.com/nationalceg", "tiktok": "http://www.tiktok.com/nationalceg", "facebook": "https://www.facebook.com/nationalceg", "linkedin": "https://www.linkedin.com/in/serpgnik"}, "lat": 33.9275201, "lon": -84.26897290000001}, {"guest_id": 4, "name": "Dj Michelle", "category": "Artist/Creative", "city": "Atlanta", "state": "GA", "country": "United States", "website": null, "social": {"instagram": "https://www.instagram.com/djmichelleb2.4productions/", "tiktok": "https://www.tiktok.com/@djmichelleb2.4", "facebook": "https://www.facebook.com/djmichelleb2.4productions/"}, "lat": 33.733615699999994, "lon": -84.3298151}, {"guest_id": 9, "name": "Douglas Clayton", "category": "Founder/Entrepreneur", "city": "Chicago", "state": "Illinois", "country": "United States", "website": "https://www.creativeevolutions.com/", "social": {"linkedin": "https://www.linkedin.com/in/douglasrclayton/"}, "lat": 41.902261599999996, "lon": -87.6433212}, {"guest_id": 33, "name": "Dr. Anuli Akanegbu", "category": "Community Organizer", "city": "Atlanta", "state": "Georgia", "country": "United States", "website": "https://anuliwashere.com/", "social": {"instagram": "https://www.instagram.com/anuliwashere", "linkedin": "https://www.linkedin.com/in/anuliakanegbu"}, "lat": 33.7652657, "lon": -84.36671510000001}, {"guest_id": 50, "name": "Ekaette Kern", "category": "Founder/Entrepreneur", "city": "Atlanta", "state": "Georgia", "country": "United States", "website": "https://brandsavor.co/", "social": {"instagram": "https://www.instagram.com/ekaettekern/", "linkedin": "https://www.linkedin.com/in/ekaette-kern/"}, "lat": 33.742615699999995, "lon": -84.38771510000001}, {"guest_id": 53, "name": "Elaine Stephenson", "category": "Artist/Creative", "city": "Atlanta", "state": "Georgia", "country": "United States", "website": "https://www.elainestephenson.com/", "social": {"instagram": "https://www.instagram.com/artsy_elaine/?hl=en", "linkedin": "https://www.linkedin.com/in/elainestephenson"}, "lat": 33.7585157, "lon": -84.4132151}, {"guest_id": 105, "name": "Elizabeth Jarrett", "category": "Founder/Entrepreneur", "city": "Santa Fe", "state": "New Mexico", "country": "United States", "website": "http://www.elizabethjarrett.me/about", "social": {"instagram": "https://www.instagram.com/elizabeth__jarrett/", "linkedin": "linkedin.com/in/elizabeth-jarrett-4bbb3539/"}, "lat": 35.6331596, "lon": -105.91640600000001}, {"guest_id": 34, "name": "EmmoLei Sankofa", "category": "Artist/Creative", "city": "Atlanta", "state": "Georgia", "country": "United States", "website": "https://www.e-sankofa.com/", "social": {"instagram": "https://www.instagram.com/emmolei/?hl=en", "linkedin": "https://www.linkedin.com/company/emmolei-sankofa/"}, "lat": 33.777715699999995, "lon": -84.37286510000001}, {"guest_id": 12, "name": "Eric Renz-Whitmore", "category": "Community Organizer", "city": "Santa Fe", "state": "New Mexico", "country": "United States", "website": null, "social": {"linkedin": "https://www.linkedin.com/in/ewhitmore/"}, "lat": 35.658809600000005, "lon": -105.996656}, {"guest_id": 75, "name": "Eva Tucker", "category": "Tech Builder", "city": "Hagerstown", "state": "Maryland", "country": "United States", "website": "https://www.dinlasgaming.com/", "social": {"linkedin": "https://www.linkedin.com/in/eva-h-tucker"}, "lat": 39.6458955, "lon": -77.6724581}, {"guest_id": 90, "name": "Faye Manselle", "category": "Artist/Creative", "city": "Atlanta", "state": "Georgia", "country": "United States", "website": "https://jfayemanselle.com/", "social": {"instagram": "https://www.instagram.com/fayetings/", "tiktok": "https://www.tiktok.com/@fayetings", "linkedin": "https://www.linkedin.com/in/fayemanselle/"}, "lat": 33.826765699999996, "lon": -84.3217151}, {"guest_id": 69, "name": "Guy Blomberg", "category": "Tech Builder", "city": "Atlanta", "state": "Georgia", "country": "United States", "website": "http://www.yugstar.com/", "social": {"linkedin": "https://www.linkedin.com/in/guyblomberg/"}, "lat": 33.746065699999996, "lon": -84.38231510000001}, {"guest_id": 1, "name": "Hogan Shrum", "category": "Tech Builder", "city": "Los Angeles", "state": "California", "country": null, "website": "https://www.gopippa.ai/", "social": {}, "lat": 33.9918909, "lon": -118.256116}, {"guest_id": 101, "name": "James Creech", "category": "Founder/Entrepreneur", "city": "Los Angeles", "state": "California", "country": "United States", "website": "https://creatoreconomyjobs.co/", "social": {"linkedin": "https://www.linkedin.com/in/jlcreech/"}, "lat": 34.0973409, "lon": -118.270666}, {"guest_id": 87, "name": "Janis Mjartans", "category": "Tech Builder", "city": "New York", "state": "New York", "country": "United states", "website": "https://mjartans.com/", "social": {"linkedin": "https://www.linkedin.com/in/janismjartans/"}, "lat": 40.6611281, "lon": -73.9542652}, {"guest_id": 57, "name": "Jaron Johnson", "category": "Artist/Creative", "city": "Duluth", "state": "Georgia", "country": "United States", "website": "www.jaronjohnson.com", "social": {"instagram": "https://www.instagram.com/jaronjolt/", "linkedin": "https://www.linkedin.com/in/jaron-johnson-885a0373/"}, "lat": 33.9491569, "lon": -84.1976546}, {"guest_id": 18, "name": "Jasmine Bianca", "category": "Founder/Entrepreneur", "city": "Atlanta", "state": "Georgia", "country": "United States", "website": "https://jabientertainment.com/", "social": {"linkedin": "https://www.linkedin.com/in/jasmine-bianca-evans-4366ab363/"}, "lat": 33.6922157, "lon": -84.3455651}, {"guest_id": 26, "name": "Javier Dominguez", "category": "Artist/Creative", "city": "Atlanta", "state": "Georgia", "country": "United States", "website": "https://javierdominguezvoiceover.com/", "social": {"instagram": "https://www.instagram.com/javierdominguezvo", "tiktok": "https://www.tiktok.com/@javierdominguezvo"}, "lat": 33.731515699999996, "lon": -84.32096510000001}, {"guest_id": 112, "name": "Jazmin Goodwin", "category": "Founder/Entrepreneur", "city": "Phoenix", "state": "Arizona", "country": "United States", "website": "https://www.jazminkgoodwin.com/", "social": {"instagram": "https://www.instagram.com/jazminkgoodwin/?hl=en", "linkedin": "https://www.linkedin.com/in/jazminkgoodwin/"}, "lat": 33.5183367, "lon": -112.033191}, {"guest_id": 60, "name": "Jazmine Valencia", "category": "Founder/Entrepreneur", "city": "Beverly Hills", "state": "California", "country": "United States", "website": "https://www.jvagency.co/", "social": {"tiktok": "https://www.tiktok.com/@jvagency", "facebook": "https://www.facebook.com/JVAgency/", "linkedin": "https://www.linkedin.com/in/jazminevalencia/"}, "lat": 34.0408501, "lon": -118.4563062}, {"guest_id": 46, "name": "Jazz Jackson", "category": "Founder/Entrepreneur", "city": "Las Vegas", "state": "Nevada", "country": "United States", "website": null, "social": {"instagram": "https://www.instagram.com/allthatjazzxx_/", "linkedin": "https://www.linkedin.com/in/jacksonjasmine/"}, "lat": 36.147626300000006, "lon": -115.1635631}, {"guest_id": 104, "name": "Jessica Blinkhorn", "category": "Artist/Creative", "city": "Atlanta", "state": "Georgia", "country": "United States", "website": "https://www.jeblinkhorn.com/", "social": {"instagram": "https://www.instagram.com/wheelie_an_artist/?hl=en", "linkedin": "https://www.linkedin.com/in/jessica-blinkhorn-2016a026/"}, "lat": 33.7438157, "lon": -84.3862151}, {"guest_id": 36, "name": "John Carnwath", "category": "Community Organizer", "city": "Alameda", "state": "California", "country": "United States", "website": "https://wolfbrown.com/", "social": {"instagram": "https://www.instagram.com/carnwathjohn/", "linkedin": "https://www.linkedin.com/in/john-carnwath-89a56358/"}, "lat": 37.5854791, "lon": -121.876642}, {"guest_id": 98, "name": "Jon Carr", "category": "Artist/Creative", "city": "Atlanta", "state": "Georgia", "country": "United States", "website": "https://www.dadsgarage.com/", "social": {"instagram": "https://www.instagram.com/joncarrjr/?hl=en", "linkedin": "https://www.linkedin.com/in/jon-carr-jr"}, "lat": 33.7252157, "lon": -84.3541151}, {"guest_id": 38, "name": "Jonelle Dawkins", "category": "Founder/Entrepreneur", "city": "Atlanta", "state": "Georgia", "country": "United States", "website": null, "social": {}, "lat": 33.7238657, "lon": -84.38171510000001}, {"guest_id": 76, "name": "KD McCauley", "category": "Founder/Entrepreneur", "city": "Atlanta", "state": "Georgia", "country": "United States", "website": null, "social": {"instagram": "https://www.instagram.com/kdglowshow"}, "lat": 33.820315699999995, "lon": -84.4630151}, {"guest_id": 81, "name": "Kim Fennell", "category": "Founder/Entrepreneur", "city": "Atlanta", "state": "Georgia", "country": "United States", "website": "https://kimfennell.com/", "social": {"instagram": "https://www.instagram.com/kimtheadmin/", "linkedin": "https://www.linkedin.com/in/kimfennellebs"}, "lat": 33.8179157, "lon": -84.3875651}, {"guest_id": 13, "name": "Kristelle Siarza Moon", "category": "Founder/Entrepreneur", "city": "Albuquerque", "state": "New Mexico", "country": "United States", "website": "https://www.misskristelle.com/", "social": {"instagram": "https://www.instagram.com/kristellesiarza/", "linkedin": "https://www.linkedin.com/in/kristellesiarza/"}, "lat": 35.1582034, "lon": -106.59503500000001}, {"guest_id": 17, "name": "Laura Hennighausen", "category": "Community Organizer", "city": "Atlanta", "state": "Georgia", "country": "United States", "website": "https://www.purposepossible.com/laura-hennighausen", "social": {"linkedin": "https://www.linkedin.com/in/laurahennighausen/"}, "lat": 33.7301657, "lon": -84.35276510000001}, {"guest_id": 11, "name": "Lauren Knabel", "category": "Artist/Creative", "city": "Atlanta", "state": "Georgia", "country": "United States", "website": "https://www.laurenknabel.com/", "social": {"instagram": "https://www.instagram.com/laurenknabel/?hl=en", "linkedin": "https://www.linkedin.com/in/lauren-knabel-613163254"}, "lat": 33.7502657, "lon": -84.36731510000001}, {"guest_id": 109, "name": "Lee Ann Scotto Adams", "category": "Community Organizer", "city": "Providence", "state": "Rhode Island", "country": "United States", "website": "https://www.leeannscottoadams.com/", "social": {"instagram": "https://www.instagram.com/leeannscottoadams", "linkedin": "linkedin.com/in/leeannscottoadams"}, "lat": 41.7977391, "lon": -71.4174843}, {"guest_id": 95, "name": "Lindsey Gamble", "category": "Founder/Entrepreneur", "city": "Boston", "state": "Massachusetts", "country": "United States", "website": "https://www.lindseygamble.com/", "social": {"instagram": "https://www.instagram.com/lindseygamble_", "linkedin": "https://www.linkedin.com/in/lindsey-gamble/"}, "lat": 42.4162836, "lon": -71.13238030000001}, {"guest_id": 71, "name": "Liz Howard", "category": "Community Organizer", "city": "Atlanta", "state": "Georgia", "country": "United States", "website": "https://www.miraibeaute.com/", "social": {"instagram": "https://www.instagram.com/codeliz/"}, "lat": 33.6946157, "lon": -84.42461510000001}, {"guest_id": 58, "name": "Luther Ocasio", "category": "Founder/Entrepreneur", "city": "Atlanta", "state": "Georgia", "country": "United States", "website": "http://thethirdspacefoundation.org/the-bardo", "social": {"linkedin": "https://www.linkedin.com/in/luther-ocasio-452295211/"}, "lat": 33.761065699999996, "lon": -84.45146510000001}, {"guest_id": 86, "name": "Lynne Thompson", "category": "Artist/Creative", "city": "Los Angeles", "state": "California", "country": "United States", "website": "https://www.lynnethompson.us/", "social": {"instagram": "https://www.instagram.com/letpms/", "facebook": "http://www.facebook.com/lynne.thompson.5688"}, "lat": 33.9944409, "lon": -118.262416}, {"guest_id": 61, "name": "L\u00e1nre", "category": "Artist/Creative", "city": "Atlanta", "state": "Georgia", "country": "United States", "website": "https://www.lanre.us/", "social": {"instagram": "https://www.instagram.com/lanre.official/?hl=en", "facebook": "https://www.facebook.com/lanremusic/", "linkedin": "https://www.linkedin.com/in/lanrekeyede/"}, "lat": 33.7447157, "lon": -84.3362651}, {"guest_id": 78, "name": "Manny Faces", "category": "Artist/Creative", "city": "Newark", "state": "New Jersey", "country": "United States", "website": "https://www.mannyfaces.com/", "social": {"instagram": "https://www.instagram.com/mannyfacesofficial/?hl=en", "facebook": "https://www.facebook.com/mannyfaces/", "linkedin": "https://www.linkedin.com/in/mannyfaces"}, "lat": 40.711207, "lon": -74.1260167}, {"guest_id": 102, "name": "Mark Kendall", "category": "Artist/Creative", "city": "Atlanta", "state": "Georgia", "country": "United States", "website": "https://coolcoolcoolpro.com/", "social": {"instagram": "https://www.instagram.com/markkendallcomedy/?hl=en", "tiktok": "https://www.tiktok.com/@markkendallcomedy", "facebook": "https://www.facebook.com/markkendallcomedy/", "linkedin": "https://www.linkedin.com/in/markokendall"}, "lat": 33.7148657, "lon": -84.3979151}, {"guest_id": 108, "name": "Michael Shreve", "category": "Community Organizer", "city": "Savannah", "state": "Georgia", "country": "United States", "website": "https://www.scad.edu/", "social": {"linkedin": "https://www.linkedin.com/in/michaelshreve/"}, "lat": 32.0637074, "lon": -81.0766835}, {"guest_id": 94, "name": "Michelle Khouri", "category": "Founder/Entrepreneur", "city": "Atlanta", "state": "Georgia", "country": "United States", "website": "https://www.michellekhouri.com/", "social": {"instagram": "https://www.instagram.com/michellekhouri/", "linkedin": "https://www.linkedin.com/in/michellekhouri/"}, "lat": 33.8285657, "lon": -84.3737651}, {"guest_id": 67, "name": "Miller McCoy", "category": "Founder/Entrepreneur", "city": "Los Angeles", "state": "California", "country": "United States", "website": "https://www.themillermccoy.com/", "social": {"instagram": "https://www.instagram.com/millermccoy/", "tiktok": "https://www.linkedin.com/in/miller-mccoy-2199b3176", "linkedin": "https://www.linkedin.com/in/miller-mccoy-2199b3176"}, "lat": 34.0425909, "lon": -118.31656600000001}, {"guest_id": 25, "name": "Mitchell Mack", "category": "Artist/Creative", "city": "Atlanta", "state": "georgia", "country": "United States", "website": null, "social": {"instagram": "https://www.instagram.com/mitchellmack94/"}, "lat": 33.777715699999995, "lon": -84.3562151}, {"guest_id": 43, "name": "Montgomery Davis", "category": "Artist/Creative", "city": "Memphis", "state": "Tennesee", "country": "United States", "website": "themontgomerydavis.com", "social": {"linkedin": "https://www.linkedin.com/in/demarcusakeemsuggs/"}, "lat": 39.4098247, "lon": -74.41779559999999}, {"guest_id": 6, "name": "Morris Robinson", "category": "Artist/Creative", "city": "Atlanta", "state": "Georgia", "country": "United States", "website": "https://morrisrobinson.com/", "social": {"facebook": "https://www.facebook.com/morris.robinson.927/A"}, "lat": 33.7994657, "lon": -84.4030151}, {"guest_id": 100, "name": "Ms. Ashley", "category": "Artist/Creative", "city": "New York City", "state": "New York", "country": "United States", "website": null, "social": {"instagram": "https://www.instagram.com/ashleydeleonmedia/?hl=en"}, "lat": 40.7533781, "lon": -73.95066519999999}, {"guest_id": 74, "name": "Mykal Alder June", "category": "Artist/Creative", "city": "Atlanta", "state": "Georgia", "country": "United states", "website": "mykejohns.com", "social": {"instagram": "https://www.instagram.com/writeclubatl/", "linkedin": "https://www.linkedin.com/in/mykal-june-3a459723/"}, "lat": 33.704965699999995, "lon": -84.42626510000001}, {"guest_id": 54, "name": "Ness S\u00e1ndoval", "category": "Tech Builder", "city": "St. Louis", "state": "Missouri", "country": "United states", "website": "https://jsosslu.wordpress.com/", "social": {"linkedin": "https://www.linkedin.com/in/ness-sandoval-a42ba938"}, "lat": 38.6012563, "lon": -90.226909}, {"guest_id": 39, "name": "Nicholas Gilomen", "category": "Artist/Creative", "city": "Atlanta", "state": "Georgia", "country": "United states", "website": "https://nicholasgilomen.wixsite.com/website", "social": {"instagram": "https://www.instagram.com/nicholasgilomen/", "linkedin": "https://www.linkedin.com/in/nicholas-gilomen-a82a92161"}, "lat": 33.7121657, "lon": -84.38141510000001}, {"guest_id": 49, "name": "Nikkia Adolphe", "category": "Founder/Entrepreneur", "city": "Atlanta", "state": "Georgia", "country": "United states", "website": "https://nik-brands.mystrikingly.com/", "social": {"linkedin": "https://www.linkedin.com/in/nikkiaadolphe"}, "lat": 33.754165699999994, "lon": -84.4480151}, {"guest_id": 30, "name": "Paul Grzybowski", "category": "Founder/Entrepreneur", "city": "Atlanta", "state": "Georgia", "country": "United states", "website": "https://atlantamushroomfestival.com/", "social": {"instagram": "https://www.instagram.com/atlantamushroomfestival/?hl=en", "facebook": "https://www.facebook.com/AtlantaMushroomFestival/", "linkedin": "https://www.linkedin.com/in/paul-grzybowski-329b4362/"}, "lat": 33.7096157, "lon": -84.3845651}, {"guest_id": 20, "name": "Rachel Meade Smith", "category": "Founder/Entrepreneur", "city": "Atlanta", "state": "Georgia", "country": "United States", "website": "https://www.rachelmeadesmith.com/", "social": {"instagram": "https://www.instagram.com/stormcloudsmith/?hl=es", "linkedin": "https://www.linkedin.com/in/rachelmeadesmith/"}, "lat": 33.761215699999994, "lon": -84.34541510000001}, {"guest_id": 3, "name": "Rakia Seaborn", "category": "Community Organizer", "city": "Philadelphia", "state": "Pennsylvania", "country": "United States", "website": "https://group36.org/", "social": {}, "lat": 40.0097237, "lon": -75.1060762}, {"guest_id": 97, "name": "Ranada Robinson", "category": "Community Organizer", "city": "Atlanta", "state": "Georgia", "country": "United States", "website": "https://newgeorgiaproject.org/", "social": {"instagram": "https://www.instagram.com/nadajo/", "facebook": "https://www.facebook.com/itsRanada/", "linkedin": "https://www.linkedin.com/in/ranadarobinson/"}, "lat": 33.7519157, "lon": -84.38261510000001}, {"guest_id": 99, "name": "Randy Davidson", "category": "Founder/Entrepreneur", "city": "Atlanta", "state": "Georgia", "country": "United States", "website": "https://www.georgiaentertainment.com/", "social": {"linkedin": "https://www.linkedin.com/in/randy-davidson-04a4313/"}, "lat": 33.686965699999995, "lon": -84.4535651}, {"guest_id": 85, "name": "Ricky Schweitzer", "category": "Founder/Entrepreneur", "city": "New York", "state": "New York", "country": "United States", "website": "https://feverup.com/en", "social": {"instagram": "https://www.instagram.com/someguynamedricky/?hl=en", "linkedin": "https://www.linkedin.com/in/ricky-schweitzer/"}, "lat": 40.6999781, "lon": -73.9953652}, {"guest_id": 21, "name": "Rocco Shapiro", "category": "Artist/Creative", "city": "Atlanta", "state": "Georgia", "country": "United States", "website": "https://www.roccoshapiro.com/", "social": {"instagram": "https://www.instagram.com/roccoshapiro/", "tiktok": "https://www.tiktok.com/@reelfriendsmovies", "linkedin": "https://www.linkedin.com/in/roccoshapiro"}, "lat": 33.6838157, "lon": -84.3806651}, {"guest_id": 40, "name": "Sabbath Canady", "category": "Community Organizer", "city": "Atlanta", "state": "Georgia", "country": "United States", "website": "https://www.spelman.edu/", "social": {"linkedin": "https://www.linkedin.com/in/sabbath-r-canady/"}, "lat": 33.7108157, "lon": -84.36041510000001}, {"guest_id": 93, "name": "Sara Sullivan", "category": "Community Organizer", "city": "Atlanta", "state": "Georgia", "country": "United States", "website": "https://www.planpaintplay.com/", "social": {"instagram": "https://www.instagram.com/artinthepaintorg/", "linkedin": "https://www.linkedin.com/in/sara-e-sullivan/"}, "lat": 33.7042157, "lon": -84.4043651}, {"guest_id": 51, "name": "Sasha Revolus", "category": "Artist/Creative", "city": "Atlanta", "state": "Georgia", "country": "United States", "website": "https://www.iamsashar.com/", "social": {"instagram": "https://www.instagram.com/iamsashar/"}, "lat": 33.8179157, "lon": -84.4624151}, {"guest_id": 107, "name": "Sawyer Estes", "category": "Artist/Creative", "city": "Atlanta", "state": "Georgia", "country": "United States", "website": "https://www.sawyerestes.com/", "social": {"instagram": "https://www.instagram.com/sawyer.estes/", "linkedin": "https://www.linkedin.com/in/sawyere/"}, "lat": 33.722965699999996, "lon": -84.3418151}, {"guest_id": 96, "name": "Sheri Winkelmann", "category": "Artist/Creative", "city": "Atlanta", "state": "Georgia", "country": "United States", "website": "https://lynxcapitalgroup.com/", "social": {"instagram": "https://www.instagram.com/thesheriwinkelmann/?hl=en", "facebook": "https://www.facebook.com/thesheriwinkelmann/", "linkedin": "https://www.linkedin.com/in/sheriwinkelmann/"}, "lat": 33.7849157, "lon": -84.3238151}, {"guest_id": 73, "name": "Shira Gans", "category": "Community Organizer", "city": "New York", "state": "New york", "country": "United States", "website": "https://www.nyc.gov/site/mome/index.page", "social": {"linkedin": "https://www.linkedin.com/in/shiragans/"}, "lat": 40.7223281, "lon": -74.0082652}, {"guest_id": 37, "name": "Tamara Stands and Looks Back-Spotted Tail", "category": "Sustainability Leader", "city": "Atlanta", "state": "Georgia", "country": "United States", "website": "https://lakotawomeninitiative.com/", "social": {"instagram": "https://www.instagram.com/tamarastandsandlooksback/", "linkedin": "https://www.linkedin.com/in/tamara-stands-and-looks-back-716191342"}, "lat": 33.6827657, "lon": -84.45806510000001}, {"guest_id": 84, "name": "Thomas Gray", "category": "Founder/Entrepreneur", "city": "Atlanta", "state": "Georgia", "country": "United States", "website": "http://www.adultgamenights.com/", "social": {"instagram": "https://www.instagram.com/adultgamenights/"}, "lat": 33.7003157, "lon": -84.33386510000001}, {"guest_id": 88, "name": "Tommysha Oates", "category": "Founder/Entrepreneur", "city": "Atlanta", "state": "Georgia", "country": "United States", "website": "www.shopmisstino.com", "social": {"instagram": "https://www.instagram.com/belleleaa_", "tiktok": "https://www.tiktok.com/@belleleaa_", "facebook": "https://www.facebook.com/tommysha.oates/", "linkedin": "https://www.linkedin.com/in/tommyshaoates/"}, "lat": 33.7036157, "lon": -84.4540151}, {"guest_id": 66, "name": "Vanessa Kuhlor", "category": "Founder/Entrepreneur", "city": "Brooklyn", "state": "New York", "country": "United States", "website": null, "social": {"instagram": "https://www.instagram.com/techndthecity/", "linkedin": "https://www.linkedin.com/in/vanessakuhlor/"}, "lat": 40.6424006, "lon": -73.91177110000001}, {"guest_id": 111, "name": "Zakiya Davidson", "category": "Founder/Entrepreneur", "city": "Atlanta", "state": "Georgia", "country": "United States", "website": null, "social": {"instagram": "https://www.instagram.com/itszakiyadavidson/"}, "lat": 33.7639157, "lon": -84.36161510000001}, {"guest_id": 55, "name": "Zakiya Whatley", "category": "Tech Builder", "city": "Atlanta", "state": "Georgia", "country": "United States", "website": "https://zakiyawhatley.com/", "social": {"instagram": "https://www.instagram.com/zsaidso/", "linkedin": "https://www.linkedin.com/in/zwhatley"}, "lat": 33.701965699999995, "lon": -84.4598651}], "off_map": [{"guest_id": 91, "name": "2024 Truist Foundation Fellows (group)", "category": "Founder/Entrepreneur", "city": null, "state": null, "country": null, "website": null, "social": {}, "reason": "no location yet"}, {"guest_id": 72, "name": "Cecilia", "category": "Tech Builder", "city": null, "state": null, "country": null, "website": null, "social": {}, "reason": "no location yet"}, {"guest_id": 115, "name": "Deja White", "category": "Founder/Entrepreneur", "city": null, "state": null, "country": null, "website": null, "social": {}, "reason": "no location yet"}, {"guest_id": 62, "name": "Dr. Steven Sparling", "category": "Community Organizer", "city": "London", "state": null, "country": "United Kingdom", "website": "https://thethrivingcreative.com/", "social": {"instagram": "https://www.instagram.com/londonsteven/", "linkedin": "https://www.linkedin.com/in/ssparling/"}, "reason": "outside the US (United Kingdom)"}, {"guest_id": 2, "name": "Greg Hemmings", "category": "Artist/Creative", "city": "St. John's", "state": "New Brunswick", "country": "Canada", "website": null, "social": {}, "reason": "outside the US (Canada)"}, {"guest_id": 16, "name": "Joao Baptista", "category": "Founder/Entrepreneur", "city": "Lisbon", "state": null, "country": "Portugal", "website": "https://iftomorrow.institute/", "social": {"instagram": "https://www.instagram.com/_fortmrw/", "linkedin": "https://www.linkedin.com/in/joaobaptistafuture/"}, "reason": "outside the US (Portugal)"}, {"guest_id": 31, "name": "Maggie", "category": "Tech Builder", "city": null, "state": null, "country": null, "website": null, "social": {"instagram": "@commoncircuitsfestival"}, "reason": "no location yet"}, {"guest_id": 45, "name": "Mike Brown", "category": "Artist/Creative", "city": null, "state": null, "country": null, "website": null, "social": {}, "reason": "no location yet"}, {"guest_id": 56, "name": "Rob Greenlee", "category": "Founder/Entrepreneur", "city": null, "state": null, "country": "United States", "website": "https://robgreenlee.com/", "social": {"instagram": "https://www.instagram.com/robwgreenlee/?hl=en"}, "reason": "no location yet"}, {"guest_id": 83, "name": "Thom Schelk", "category": "Community Organizer", "city": null, "state": null, "country": null, "website": null, "social": {}, "reason": "no location yet"}, {"guest_id": 27, "name": "Tim Packer", "category": "Artist/Creative", "city": "Toronto", "state": null, "country": "Canada", "website": "https://www.timpackerartacademy.com/", "social": {"facebook": "https://www.facebook.com/photo/?fbid=200544161442660", "linkedin": "https://www.linkedin.com/in/timpacker1/"}, "reason": "outside the US (Canada)"}]};
+// resolved hex values (CSS vars don't work inside SVG fill via JS reliably in every renderer)
+const CATEGORY_HEX = {
+  "Artist/Creative": "#F0637A",
+  "Founder/Entrepreneur": "#F0B84B",
+  "Tech Builder": "#48C9B0",
+  "Community Organizer": "#9B87E8",
+  "Sustainability Leader": "#7FC79E",
+};
+
+const svg = d3.select("#map");
+const stage = document.getElementById("stage");
+let width = stage.clientWidth, height = stage.clientHeight;
+svg.attr("viewBox", `0 0 ${width} ${height}`);
+
+const projection = d3.geoAlbersUsa().translate([width / 2, height / 2]).scale(width * 1.05);
+const path = d3.geoPath().projection(projection);
+
+const g = svg.append("g");
+const glowDefs = svg.append("defs");
+
+Object.entries(CATEGORY_HEX).forEach(([cat, hex]) => {
+  const filterId = "glow-" + cat.replace(/[^a-zA-Z]/g, "");
+  const filter = glowDefs.append("filter")
+    .attr("id", filterId)
+    .attr("x", "-200%").attr("y", "-200%").attr("width", "500%").attr("height", "500%");
+  filter.append("feGaussianBlur").attr("stdDeviation", 3).attr("result", "blur");
+  filter.append("feMerge").selectAll("feMergeNode")
+    .data(["blur", "SourceGraphic"])
+    .enter().append("feMergeNode").attr("in", d => d);
+});
+
+const tooltip = document.getElementById("tooltip");
+let activeCategories = new Set(Object.keys(CATEGORY_HEX));
+
+d3.json("https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json").then(us => {
+  const states = topojson.feature(us, us.objects.states);
+
+  g.selectAll("path.state")
+    .data(states.features)
+    .join("path")
+    .attr("class", "state")
+    .attr("d", path);
+
+  renderGuests();
+}).catch(err => {
+  document.getElementById("guest-count-label").textContent =
+    "Map data failed to load (needs internet access to jsdelivr.net)";
+  console.error(err);
+});
+
+function renderGuests() {
+  const guestLayer = g.append("g").attr("class", "guests");
+
+  const dots = guestLayer.selectAll("circle.spark")
+    .data(DATA.on_map)
+    .join("circle")
+    .attr("class", "spark")
+    .attr("r", 0)
+    .attr("cx", d => projection([d.lon, d.lat])?.[0] ?? -100)
+    .attr("cy", d => projection([d.lon, d.lat])?.[1] ?? -100)
+    .attr("fill", d => CATEGORY_HEX[d.category] || "#999")
+    .attr("filter", d => `url(#glow-${d.category.replace(/[^a-zA-Z]/g, "")})`)
+    .attr("stroke", "rgba(0,0,0,0.25)")
+    .attr("stroke-width", 0.5)
+    .on("mouseenter", function(event, d) { showTooltip(event, d); d3.select(this).attr("r", 7); })
+    .on("mousemove", function(event) { positionTooltip(event); })
+    .on("mouseleave", function() { hideTooltip(); d3.select(this).attr("r", 4.5); })
+    .on("click", function(event, d) {
+      if (d.website) window.open(normalizeUrl(d.website), "_blank");
+      else if (d.social && Object.values(d.social)[0]) window.open(normalizeUrl(Object.values(d.social)[0]), "_blank");
+    });
+
+  dots.transition()
+    .duration(500)
+    .delay((d, i) => i * 8)
+    .attr("r", 4.5);
+
+  document.getElementById("guest-count-label").textContent =
+    `${DATA.on_map.length} guests plotted · ${DATA.off_map.length} not yet on the map`;
+
+  buildLegend(dots);
+  buildOffMapPanel();
+}
+
+function normalizeUrl(url) {
+  if (!/^https?:\/\//i.test(url)) return "https://" + url;
+  return url;
+}
+
+function showTooltip(event, d) {
+  tooltip.innerHTML = `
+    <div class="t-name">${escapeHtml(d.name)}</div>
+    <div class="t-cat">${escapeHtml(d.category)}</div>
+    <div class="t-loc">${escapeHtml(d.city)}${d.state ? ", " + escapeHtml(d.state) : ""}</div>
+    ${(d.website || Object.keys(d.social || {}).length) ? '<div class="t-hint">Click to visit their site</div>' : ""}
+  `;
+  tooltip.style.display = "block";
+  positionTooltip(event);
+}
+function positionTooltip(event) {
+  const rect = stage.getBoundingClientRect();
+  let x = event.clientX - rect.left + 14;
+  let y = event.clientY - rect.top + 14;
+  tooltip.style.left = x + "px";
+  tooltip.style.top = y + "px";
+}
+function hideTooltip() { tooltip.style.display = "none"; }
+
+function escapeHtml(s) {
+  if (!s) return "";
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function buildLegend(dots) {
+  const counts = {};
+  DATA.on_map.forEach(d => counts[d.category] = (counts[d.category] || 0) + 1);
+
+  const container = document.getElementById("legend-items");
+  Object.keys(CATEGORY_HEX).forEach(cat => {
+    const item = document.createElement("div");
+    item.className = "legend-item";
+    item.innerHTML = `
+      <span class="legend-dot" style="background:${CATEGORY_HEX[cat]}"></span>
+      <span>${cat}</span>
+      <span class="legend-count">${counts[cat] || 0}</span>
+    `;
+    item.addEventListener("click", () => {
+      if (activeCategories.has(cat)) { activeCategories.delete(cat); item.classList.add("off"); }
+      else { activeCategories.add(cat); item.classList.remove("off"); }
+      dots.classed("dimmed", d => !activeCategories.has(d.category));
+    });
+    container.appendChild(item);
+  });
+}
+
+function buildOffMapPanel() {
+  const panel = document.getElementById("offmap-panel");
+  const noLoc = DATA.off_map.filter(d => d.reason === "no location yet");
+  const intl = DATA.off_map.filter(d => d.reason && d.reason.startsWith("outside"));
+
+  let html = `<h3>Not shown on the map</h3>
+    <div class="subnote">These guests are outside the continental-US view or don't have a location yet -- they're still part of the show, just not plottable here.</div>`;
+
+  if (intl.length) {
+    html += `<div class="offmap-group-label">Outside the US (${intl.length})</div>`;
+    intl.forEach(d => {
+      html += `<div class="offmap-guest">
+        <span><span class="cat-dot" style="background:${CATEGORY_HEX[d.category] || '#999'}"></span>${escapeHtml(d.name)}</span>
+        <span style="color:var(--text-muted)">${escapeHtml(d.city || "")}</span>
+      </div>`;
+    });
+  }
+  if (noLoc.length) {
+    html += `<div class="offmap-group-label">Location not yet researched (${noLoc.length})</div>`;
+    noLoc.forEach(d => {
+      html += `<div class="offmap-guest">
+        <span><span class="cat-dot" style="background:${CATEGORY_HEX[d.category] || '#999'}"></span>${escapeHtml(d.name)}</span>
+      </div>`;
+    });
+  }
+  panel.innerHTML = html;
+
+  document.getElementById("offmap-toggle").addEventListener("click", () => {
+    panel.classList.toggle("open");
+  });
+}
+
+window.addEventListener("resize", () => {
+  width = stage.clientWidth; height = stage.clientHeight;
+  svg.attr("viewBox", `0 0 ${width} ${height}`);
+  projection.translate([width / 2, height / 2]).scale(width * 1.05);
+  g.selectAll("path.state").attr("d", path);
+  g.selectAll("circle.spark")
+    .attr("cx", d => projection([d.lon, d.lat])?.[0] ?? -100)
+    .attr("cy", d => projection([d.lon, d.lat])?.[1] ?? -100);
+});
+</script>
+</body>
+</html>
