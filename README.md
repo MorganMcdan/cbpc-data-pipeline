@@ -54,7 +54,7 @@ once backfilled; currently most rows are `'unknown'` pending that cleanup.
 
 ## Privacy
 
-This repo is private on purpose — episode descriptions include at least
-one direct contact email, and the guest table is expected to eventually
-hold personal social handles and (once populated) home city/state. Don't
-make this public without stripping that first.
+The guest data (names, socials, contact info, city/state) is sourced from
+what guests themselves shared publicly in episode show notes, and is
+treated as public information — the guest map is deployed publicly on
+Vercel, serving `cbpc_guest_map.html` directly (see `vercel.json`).
