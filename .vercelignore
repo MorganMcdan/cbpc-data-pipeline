@@ -1,0 +1,8 @@
+*.py
+*.db
+*.sql
+*.yml
+*.json
+!vercel.json
+.Rhistory
+.github
