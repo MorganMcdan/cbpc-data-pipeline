@@ -1,0 +1,5 @@
+{
+  "rewrites": [
+    { "source": "/", "destination": "/cbpc_guest_map.html" }
+  ]
+}
