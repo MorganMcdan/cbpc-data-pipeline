@@ -1451,6 +1451,28 @@
     "needs_review": true
   },
   {
+    "guid": "26463478-e11c-11f1-81ef-97bef9db9521",
+    "title": "Three Predictions for the Next Five Years of Creative Work",
+    "pub_date": "Sun, 15 Nov 2026 17:44:00 -0000",
+    "season": null,
+    "episode_number": null,
+    "spotify_url": null,
+    "guests": [],
+    "themes": [],
+    "needs_review": true
+  },
+  {
+    "guid": "fe57093a-e128-11f1-b136-8756cff730ed",
+    "title": "Arts Survival Guide to Getting Paid with Celestina Billington",
+    "pub_date": "Sun, 15 Nov 2026 19:15:00 -0000",
+    "season": null,
+    "episode_number": null,
+    "spotify_url": null,
+    "guests": [],
+    "themes": [],
+    "needs_review": true
+  },
+  {
     "guid": "36630f6a-7598-11f1-90d6-9fe2cae20882",
     "title": "Fiscal Sponsorship 101: How Creatives Can Fund the Work Without Building a Nonprofit",
     "pub_date": "Thu, 02 Jul 2026 17:19:00 -0000",
@@ -1588,6 +1610,17 @@
     "pub_date": "Thu, 12 Feb 2026 17:22:00 -0000",
     "season": 3,
     "episode_number": 3,
+    "spotify_url": null,
+    "guests": [],
+    "themes": [],
+    "needs_review": true
+  },
+  {
+    "guid": "5ea6d53a-debe-11f1-88b9-dbb344befa66",
+    "title": "No Perfect First Take with Dr. Mariely Hernandez",
+    "pub_date": "Thu, 12 Nov 2026 17:27:00 -0000",
+    "season": null,
+    "episode_number": null,
     "spotify_url": null,
     "guests": [],
     "themes": [],
