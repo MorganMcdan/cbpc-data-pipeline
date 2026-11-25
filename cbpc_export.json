@@ -1407,6 +1407,17 @@
     "needs_review": true
   },
   {
+    "guid": "0bdd5004-e508-11f1-990d-1bf240c3c238",
+    "title": "Small Runs, Big Ideas: Moyang Yang on Building for Startups",
+    "pub_date": "Fri, 20 Nov 2026 17:30:00 -0000",
+    "season": null,
+    "episode_number": null,
+    "spotify_url": null,
+    "guests": [],
+    "themes": [],
+    "needs_review": true
+  },
+  {
     "guid": "5d9b2428-cebc-11f1-a3ba-b3ab2bf27780",
     "title": "Lee on Business, Hip Hop, and Making Music for the Love of It",
     "pub_date": "Fri, 23 Oct 2026 08:33:00 -0000",
@@ -1443,28 +1454,6 @@
     "guid": "substack:post:141103343",
     "title": "BONUS: Creative Brunch Chats with Amirah Kahera and Deja White",
     "pub_date": "Sat, 27 Jan 2024 17:42:35 -0000",
-    "season": null,
-    "episode_number": null,
-    "spotify_url": null,
-    "guests": [],
-    "themes": [],
-    "needs_review": true
-  },
-  {
-    "guid": "26463478-e11c-11f1-81ef-97bef9db9521",
-    "title": "Three Predictions for the Next Five Years of Creative Work",
-    "pub_date": "Sun, 15 Nov 2026 17:44:00 -0000",
-    "season": null,
-    "episode_number": null,
-    "spotify_url": null,
-    "guests": [],
-    "themes": [],
-    "needs_review": true
-  },
-  {
-    "guid": "fe57093a-e128-11f1-b136-8756cff730ed",
-    "title": "Arts Survival Guide to Getting Paid with Celestina Billington",
-    "pub_date": "Sun, 15 Nov 2026 19:15:00 -0000",
     "season": null,
     "episode_number": null,
     "spotify_url": null,
@@ -1704,6 +1693,17 @@
     "needs_review": true
   },
   {
+    "guid": "6bfa8cac-e3cf-11f1-86fd-77202b26218b",
+    "title": "Chris Garner on Faith, Hip Hop, and Rising Above the Nerves",
+    "pub_date": "Thu, 19 Nov 2026 04:12:00 -0000",
+    "season": null,
+    "episode_number": null,
+    "spotify_url": null,
+    "guests": [],
+    "themes": [],
+    "needs_review": true
+  },
+  {
     "guid": "2af75818-9ca6-11f1-a1fb-ff7897dab2b8",
     "title": "Melba Moore and the Art of the Lifelong Career",
     "pub_date": "Thu, 20 Aug 2026 14:48:00 -0000",
@@ -1883,6 +1883,39 @@
     "guid": "7925f214-c48a-11f0-945d-7f5912af7e57",
     "title": "What's Behind the Magic of the Atlanta Mushroom Festival?",
     "pub_date": "Tue, 18 Nov 2025 14:25:00 -0000",
+    "season": null,
+    "episode_number": null,
+    "spotify_url": null,
+    "guests": [],
+    "themes": [],
+    "needs_review": true
+  },
+  {
+    "guid": "09e3b1c4-e82a-11f1-89aa-473fe99f0955",
+    "title": "Claudia Savi\u00f1on on Law, Film, and the Rise of Dominican Cinema",
+    "pub_date": "Tue, 24 Nov 2026 17:11:00 -0000",
+    "season": null,
+    "episode_number": null,
+    "spotify_url": null,
+    "guests": [],
+    "themes": [],
+    "needs_review": true
+  },
+  {
+    "guid": "fe57093a-e128-11f1-b136-8756cff730ed",
+    "title": "Arts Survival Guide to Getting Paid with Celestina Billington",
+    "pub_date": "Tue, 24 Nov 2026 17:54:00 -0000",
+    "season": null,
+    "episode_number": null,
+    "spotify_url": null,
+    "guests": [],
+    "themes": [],
+    "needs_review": true
+  },
+  {
+    "guid": "26463478-e11c-11f1-81ef-97bef9db9521",
+    "title": "Three Predictions for the Next Five Years of Creative Work",
+    "pub_date": "Tue, 24 Nov 2026 17:54:00 -0000",
     "season": null,
     "episode_number": null,
     "spotify_url": null,
